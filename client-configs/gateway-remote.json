@@ -1,0 +1,14 @@
+{
+  "_comment": "MCP Gateway — single endpoint for all tools via Cloudflare Access (remote)",
+  "_setup": "1. Replace YOUR_DOMAIN with your Cloudflare tunnel domain. 2. Get CF Access credentials from Cloudflare Zero Trust dashboard. 3. Replace CF_ACCESS_CLIENT_ID and CF_ACCESS_CLIENT_SECRET. 4. Copy the mcpServers block into your MCP client config.",
+  "mcpServers": {
+    "mcp-gateway": {
+      "type": "http",
+      "url": "https://YOUR_DOMAIN/gateway/mcp",
+      "headers": {
+        "CF-Access-Client-Id": "YOUR_CF_ACCESS_CLIENT_ID",
+        "CF-Access-Client-Secret": "YOUR_CF_ACCESS_CLIENT_SECRET"
+      }
+    }
+  }
+}

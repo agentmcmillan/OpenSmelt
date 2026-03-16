@@ -1,0 +1,10 @@
+{
+  "_comment": "MCP Gateway — single endpoint for all tools via LAN direct access",
+  "_setup": "Replace YOUR_SERVER_IP with the IP or hostname of your OpenSmelt server. Add the mcp-gateway block to your MCP client config.",
+  "mcpServers": {
+    "mcp-gateway": {
+      "type": "http",
+      "url": "http://YOUR_SERVER_IP:9000/mcp"
+    }
+  }
+}

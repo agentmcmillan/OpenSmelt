@@ -1,0 +1,22 @@
+.env
+.DS_Store
+node_modules/
+__pycache__/
+*.pyc
+
+# Private keys and certificates — NEVER commit these
+caddy/client-certs/*
+!caddy/client-certs/.gitkeep
+caddy/client-certs/*.key
+caddy/client-certs/*.p12
+caddy/client-certs/*.csr
+caddy/client-certs/ca.key
+caddy/client-certs/ca.srl
+
+# SSH keys for ssh-mcp container — NEVER commit real keys
+ssh-keys/*
+!ssh-keys/.gitkeep
+
+# Volumes
+postgres_data/
+redis_data/

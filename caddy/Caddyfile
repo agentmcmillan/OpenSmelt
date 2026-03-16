@@ -1,0 +1,100 @@
+# OpenSmelt — Reverse Proxy
+# Configure DOMAIN in .env (defaults to localhost)
+# Traffic from Cloudflare Tunnel arrives as HTTP on :80
+# mTLS block on :443 for direct LAN access with client certs
+
+{
+	# Replace with your email for ACME cert notifications (optional)
+	# email admin@example.com
+}
+
+# Shared route handlers — imported by both server blocks
+(mcp_routes) {
+	# MCP Gateway — single-endpoint aggregation
+	handle /gateway/* {
+		uri strip_prefix /gateway
+		reverse_proxy mcp-gateway:9000
+	}
+
+	# Memento MCP — shared memory
+	handle /memento/* {
+		uri strip_prefix /memento
+		reverse_proxy memento:56332
+	}
+
+	# Memento MCP — direct /mcp endpoint for compatibility
+	handle /memento-mcp {
+		rewrite * /mcp
+		reverse_proxy memento:56332
+	}
+
+	# FastMCP tools
+	handle /tools/* {
+		uri strip_prefix /tools
+		reverse_proxy fastmcp-tools:8090
+	}
+
+	# FastMCP tools — direct /mcp endpoint for compatibility
+	handle /tools-mcp {
+		rewrite * /mcp
+		reverse_proxy fastmcp-tools:8090
+	}
+
+	# Health check
+	handle /health {
+		respond "OK" 200
+	}
+
+	# Default: show available endpoints
+	handle / {
+		respond `{
+			"service": "opensmelt",
+			"endpoints": {
+				"gateway": "/gateway/mcp",
+				"memento": "/memento/mcp",
+				"tools": "/tools/mcp",
+				"health": "/health"
+			}
+		}` 200
+	}
+}
+
+# Shared security headers — imported by both server blocks
+(security_headers) {
+	header {
+		X-Content-Type-Options nosniff
+		X-Frame-Options DENY
+		-Server
+	}
+}
+
+# Primary: HTTP routes (Cloudflare Tunnel traffic or local dev)
+:80 {
+	log {
+		output file /data/access.log {
+			roll_size 50mb
+			roll_keep 5
+		}
+		format json
+	}
+
+	import mcp_routes
+	import security_headers
+}
+
+# Secondary: mTLS-protected HTTPS for direct LAN access (optional)
+# Uncomment and replace YOUR_DOMAIN with your actual domain to enable mTLS:
+#
+# YOUR_DOMAIN {
+# 	tls {
+# 		client_auth {
+# 			mode require_and_verify
+# 			trust_pool file /etc/caddy/client-certs/ca.crt
+# 		}
+# 	}
+#
+# 	import mcp_routes
+#
+# 	header Strict-Transport-Security "max-age=31536000; includeSubDomains"
+# 	import security_headers
+# }
