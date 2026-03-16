@@ -8,9 +8,11 @@ Thanks for your interest in contributing! This guide covers setup, testing, and 
 git clone https://github.com/agentmcmillan/OpenSmelt.git
 cd OpenSmelt
 ./setup.sh                    # or: cp .env.example .env && edit
-docker compose up -d
+docker compose up -d          # starts core + profiled backends
 ./scripts/test-gateway.sh     # verify everything works
 ```
+
+To start specific backends, set `COMPOSE_PROFILES` in `.env` (e.g., `COMPOSE_PROFILES=github,ollama`).
 
 ## Running Tests
 

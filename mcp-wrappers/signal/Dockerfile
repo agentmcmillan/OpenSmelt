@@ -9,4 +9,9 @@ WORKDIR /app
 USER node
 EXPOSE 3000
 
-CMD sh -c 'if [ ! -f /app/signal-mcp/dist/index.js ]; then echo "signal-mcp dist not found, sleeping"; sleep infinity; else exec supergateway --stdio "node /app/signal-mcp/dist/index.js" --outputTransport streamableHttp --stateful --port 3000 --healthEndpoint /health; fi'
+CMD ["supergateway", \
+     "--stdio", "node /app/signal-mcp/dist/index.js", \
+     "--outputTransport", "streamableHttp", \
+     "--stateful", \
+     "--port", "3000", \
+     "--healthEndpoint", "/health"]

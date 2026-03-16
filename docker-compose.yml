@@ -129,20 +129,10 @@ services:
         condition: service_healthy
       fastmcp-tools:
         condition: service_healthy
-      github-mcp:
-        condition: service_started
-      signal-mcp:
-        condition: service_started
-      docker-mcp:
-        condition: service_healthy
-      ollama-mcp:
-        condition: service_healthy
-      ssh-mcp:
-        condition: service_healthy
       rss-mcp:
         condition: service_healthy
-      cloudflare-mcp:
-        condition: service_started
+      docker-mcp:
+        condition: service_healthy
     environment:
       GATEWAY_HOST: "0.0.0.0"
       GATEWAY_PORT: "9000"
@@ -151,13 +141,14 @@ services:
       MEMENTO_ACCESS_KEY: ${MEMENTO_ACCESS_KEY:?Set MEMENTO_ACCESS_KEY in .env}
       NETWORK_TOOLS_URL: "http://fastmcp-tools:8090"
       CONTEXT7_URL: ${CONTEXT7_URL:-https://mcp.context7.com/mcp}
+      COMPOSE_PROFILES: ${COMPOSE_PROFILES:-}
+      DOCKER_MCP_URL: "http://docker-mcp:3000"
+      RSS_MCP_URL: "http://rss-mcp:3000"
       GITHUB_MCP_URL: "http://github-mcp:3000"
       SIGNAL_MCP_URL: "http://signal-mcp:3000"
-      DOCKER_MCP_URL: "http://docker-mcp:3000"
       OLLAMA_MCP_URL: "http://ollama-mcp:3000"
       CLOUDFLARE_MCP_URL: "http://cloudflare-mcp:3000"
       SSH_MCP_URL: "http://ssh-mcp:3000"
-      RSS_MCP_URL: "http://rss-mcp:3000"
     ports:
       - "127.0.0.1:9000:9000"
     healthcheck:
@@ -179,6 +170,7 @@ services:
     build:
       context: ./mcp-wrappers/github
     restart: unless-stopped
+    profiles: ["github"]
     environment:
       GITHUB_PERSONAL_ACCESS_TOKEN: ${GITHUB_PERSONAL_ACCESS_TOKEN:?Set GITHUB_PERSONAL_ACCESS_TOKEN in .env}
     healthcheck:
@@ -196,12 +188,13 @@ services:
     build:
       context: ./mcp-wrappers/signal
     restart: unless-stopped
+    profiles: ["signal"]
     environment:
       SIGNAL_API_URL: ${SIGNAL_API_URL:-}
-      SIGNAL_SENDER: ${SIGNAL_SENDER:-}
+      SIGNAL_BOT_NUMBER: ${SIGNAL_BOT_NUMBER:-}
       SIGNAL_RECIPIENT: ${SIGNAL_RECIPIENT:-}
     volumes:
-      - ${AI_SIGNALS_PATH:-./mcp-wrappers/signal/placeholder}:/app/signal-mcp:ro
+      - ${AI_SIGNALS_PATH:?Set AI_SIGNALS_PATH in .env}:/app/signal-mcp:ro
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:3000/health 2>/dev/null | grep -q ok"]
       interval: 30s
@@ -234,6 +227,7 @@ services:
     build:
       context: ./mcp-wrappers/ollama
     restart: unless-stopped
+    profiles: ["ollama"]
     extra_hosts:
       - "host.docker.internal:host-gateway"
     environment:
@@ -253,9 +247,10 @@ services:
     build:
       context: ./mcp-wrappers/cloudflare
     restart: unless-stopped
+    profiles: ["cloudflare"]
     environment:
-      CLOUDFLARE_API_TOKEN: ${CLOUDFLARE_API_TOKEN:-}
-      CLOUDFLARE_ACCOUNT_ID: ${CLOUDFLARE_ACCOUNT_ID:-}
+      CLOUDFLARE_API_TOKEN: ${CLOUDFLARE_API_TOKEN:?Set CLOUDFLARE_API_TOKEN in .env}
+      CLOUDFLARE_ACCOUNT_ID: ${CLOUDFLARE_ACCOUNT_ID:?Set CLOUDFLARE_ACCOUNT_ID in .env}
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:3000/health 2>/dev/null | grep -q ok"]
       interval: 30s
@@ -271,6 +266,7 @@ services:
     build:
       context: ./mcp-wrappers/ssh
     restart: unless-stopped
+    profiles: ["ssh"]
     volumes:
       - ${SSH_KEYS_PATH:-./ssh-keys}:/home/node/.ssh:ro
     healthcheck:

@@ -37,7 +37,10 @@ def _build_mcp_config() -> dict:
     memento_url = _env("MEMENTO_URL", "http://memento:56332")
     memento_key = _env("MEMENTO_ACCESS_KEY", "")
     if memento_url:
-        servers["memento"] = {"url": f"{memento_url}/sse?accessKey={memento_key}"}
+        memento_cfg = {"url": f"{memento_url}/mcp"}
+        if memento_key:
+            memento_cfg["headers"] = {"Authorization": f"Bearer {memento_key}"}
+        servers["memento"] = memento_cfg
 
     tools_url = _env("NETWORK_TOOLS_URL", "http://fastmcp-tools:8090")
     if tools_url:
@@ -47,17 +50,27 @@ def _build_mcp_config() -> dict:
     if context7_url:
         servers["context7"] = {"url": context7_url}
 
+    # Core wrappers (always started)
     wrapper_backends = {
-        "github": _env("GITHUB_MCP_URL", "http://github-mcp:3000"),
-        "signal": _env("SIGNAL_MCP_URL", "http://signal-mcp:3000"),
         "docker": _env("DOCKER_MCP_URL", "http://docker-mcp:3000"),
-        "ollama": _env("OLLAMA_MCP_URL", "http://ollama-mcp:3000"),
-        "ssh": _env("SSH_MCP_URL", "http://ssh-mcp:3000"),
         "rss": _env("RSS_MCP_URL", "http://rss-mcp:3000"),
     }
-    # Only include cloudflare if account ID is configured
-    if _env("CLOUDFLARE_ACCOUNT_ID"):
-        wrapper_backends["cloudflare"] = _env("CLOUDFLARE_MCP_URL", "http://cloudflare-mcp:3000")
+
+    # Profile-based wrappers (only include if their service URL is explicitly set
+    # or if we can detect the service is expected to be running)
+    profile_backends = {
+        "github": _env("GITHUB_MCP_URL", "http://github-mcp:3000"),
+        "signal": _env("SIGNAL_MCP_URL", "http://signal-mcp:3000"),
+        "ollama": _env("OLLAMA_MCP_URL", "http://ollama-mcp:3000"),
+        "ssh": _env("SSH_MCP_URL", "http://ssh-mcp:3000"),
+        "cloudflare": _env("CLOUDFLARE_MCP_URL", "http://cloudflare-mcp:3000"),
+    }
+
+    # Detect active profiles from COMPOSE_PROFILES env var
+    active_profiles = {p.strip() for p in _env("COMPOSE_PROFILES", "").split(",") if p.strip()}
+    for name, url in profile_backends.items():
+        if name in active_profiles:
+            wrapper_backends[name] = url
 
     for name, base_url in wrapper_backends.items():
         if base_url:

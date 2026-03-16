@@ -29,9 +29,15 @@ fi
 echo "Prerequisites OK (Docker + Docker Compose found)"
 echo ""
 
+# Ensure directories exist
+mkdir -p caddy/client-certs ssh-keys mcp-wrappers/signal/placeholder
+
 # Generate secrets
 MEMENTO_KEY=$(openssl rand -hex 32)
 PG_PASS=$(openssl rand -hex 32)
+
+# Collect optional backend profiles
+PROFILES=""
 
 # Ask for GitHub PAT
 echo "--- GitHub Personal Access Token ---"
@@ -40,7 +46,14 @@ echo "Create one at: https://github.com/settings/tokens"
 echo "Scopes needed: repo, read:org (or use a fine-grained token)"
 echo ""
 read -p "GitHub PAT (or press Enter to skip): " GITHUB_PAT
-GITHUB_PAT=${GITHUB_PAT:-ghp_your_token_here}
+
+GITHUB_CONFIG=""
+if [ -n "$GITHUB_PAT" ]; then
+    GITHUB_CONFIG="GITHUB_PERSONAL_ACCESS_TOKEN=${GITHUB_PAT}"
+    PROFILES="${PROFILES:+$PROFILES,}github"
+else
+    GITHUB_CONFIG="# GITHUB_PERSONAL_ACCESS_TOKEN=ghp_your_token_here"
+fi
 
 # Ask for optional Signal config
 echo ""
@@ -55,13 +68,34 @@ if [ -n "$SIGNAL_URL" ]; then
     read -p "Signal recipient phone number (e.g., +15550005678): " SIGNAL_RECIP
     SIGNAL_CONFIG="SIGNAL_API_URL=${SIGNAL_URL}
 SIGNAL_BOT_NUMBER=${SIGNAL_BOT}
-SIGNAL_SENDER=${SIGNAL_BOT}
 SIGNAL_RECIPIENT=${SIGNAL_RECIP}"
+    PROFILES="${PROFILES:+$PROFILES,}signal"
 else
     SIGNAL_CONFIG="# SIGNAL_API_URL=
 # SIGNAL_BOT_NUMBER=
-# SIGNAL_SENDER=
 # SIGNAL_RECIPIENT="
+fi
+
+# Ask for Ollama
+echo ""
+echo "--- Ollama (optional — local LLM tools) ---"
+echo "Requires Ollama running on the Docker host."
+echo ""
+read -p "Enable Ollama backend? [y/N] " ENABLE_OLLAMA
+
+OLLAMA_CONFIG=""
+if [ "$ENABLE_OLLAMA" = "y" ] || [ "$ENABLE_OLLAMA" = "Y" ]; then
+    PROFILES="${PROFILES:+$PROFILES,}ollama"
+    OLLAMA_CONFIG="OLLAMA_HOST=\${OLLAMA_HOST:-http://host.docker.internal:11434}"
+else
+    OLLAMA_CONFIG="# OLLAMA_HOST=http://host.docker.internal:11434"
+fi
+
+# Ask for SSH
+echo ""
+read -p "Enable SSH backend? (put keys in ssh-keys/) [y/N] " ENABLE_SSH
+if [ "$ENABLE_SSH" = "y" ] || [ "$ENABLE_SSH" = "Y" ]; then
+    PROFILES="${PROFILES:+$PROFILES,}ssh"
 fi
 
 # Write .env
@@ -73,8 +107,13 @@ cat > .env << EOF
 MEMENTO_ACCESS_KEY=${MEMENTO_KEY}
 POSTGRES_PASSWORD=${PG_PASS}
 
+# === Enabled backends ===
+# Core (memento, tools, rss, docker) always start.
+# Profiles control optional backends: github, signal, ollama, cloudflare, ssh
+COMPOSE_PROFILES=${PROFILES}
+
 # === GitHub ===
-GITHUB_PERSONAL_ACCESS_TOKEN=${GITHUB_PAT}
+${GITHUB_CONFIG}
 
 # === OpenAI (optional — for Memento semantic search) ===
 # OPENAI_API_KEY=
@@ -83,7 +122,7 @@ GITHUB_PERSONAL_ACCESS_TOKEN=${GITHUB_PAT}
 ${SIGNAL_CONFIG}
 
 # === Ollama (optional — auto-detects host) ===
-# OLLAMA_HOST=http://host.docker.internal:11434
+${OLLAMA_CONFIG}
 
 # === Cloudflare (optional) ===
 # CLOUDFLARE_API_TOKEN=
@@ -98,6 +137,12 @@ EOF
 
 echo ""
 echo "=== .env created ==="
+echo ""
+if [ -n "$PROFILES" ]; then
+    echo "Enabled profiles: ${PROFILES}"
+else
+    echo "No optional backends enabled (core only)."
+fi
 echo ""
 echo "Next steps:"
 echo "  1. docker compose up -d          # start all services"

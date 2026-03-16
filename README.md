@@ -2,7 +2,7 @@
 
 An MCP gateway that aggregates multiple backend MCP servers into a single endpoint. Connect once, get all tools.
 
-Any MCP-compatible client (Claude Code, Codex CLI, Gemini CLI, Cursor) connects to one URL and gets access to 100+ tools across 9 namespaced backends.
+Any MCP-compatible client (Claude Code, Codex CLI, Gemini CLI, Cursor) connects to one URL and gets access to 100+ tools across namespaced backends.
 
 ## Architecture
 
@@ -12,33 +12,35 @@ MCP Client (Claude Code, Codex CLI, etc.)
     v
 MCP Gateway :9000  ──  FastMCP create_proxy() aggregates all backends
     |
-    ├── memento      Shared semantic memory (Node.js + pgvector)
-    ├── tools        Fleet status, Signal messaging, shared config (Python)
-    ├── github       GitHub API tools (supergateway wrapper)
-    ├── signal       Signal messaging (supergateway wrapper, optional)
-    ├── docker       Docker management (supergateway wrapper)
-    ├── ollama       Local LLM via Ollama (supergateway wrapper)
-    ├── cloudflare   Cloudflare API (supergateway wrapper, optional)
-    ├── ssh          SSH to fleet devices (supergateway wrapper)
-    └── rss          RSS feed reader (supergateway wrapper)
+    ├── memento      Shared semantic memory (Node.js + pgvector)     [core]
+    ├── tools        Fleet status, Signal messaging, shared config   [core]
+    ├── docker       Docker management (supergateway wrapper)        [core]
+    ├── rss          RSS feed reader (supergateway wrapper)          [core]
+    ├── github       GitHub API tools (supergateway wrapper)         [profile: github]
+    ├── ollama       Local LLM via Ollama (supergateway wrapper)     [profile: ollama]
+    ├── ssh          SSH to fleet devices (supergateway wrapper)     [profile: ssh]
+    ├── signal       Signal messaging (supergateway wrapper)         [profile: signal]
+    └── cloudflare   Cloudflare API (supergateway wrapper)           [profile: cloudflare]
 ```
 
 Tools are namespaced by backend (e.g., `memento_remember`, `github_search_repositories`, `docker_list_containers`).
 
+## Prerequisites
+
+- **Docker 20.10+** with Docker Compose v2
+- **4 GB RAM** minimum (8 GB recommended if running Ollama)
+- **10 GB disk** for Docker images and data volumes
+- A **GitHub personal access token** if you want the GitHub backend ([create one](https://github.com/settings/tokens))
+
 ## Quick Start
-
-### Prerequisites
-
-- Docker + Docker Compose on the target host
-- A GitHub personal access token ([create one](https://github.com/settings/tokens))
 
 ### Option A: Interactive Setup (recommended)
 
 ```bash
 git clone https://github.com/agentmcmillan/OpenSmelt.git
 cd OpenSmelt
-./setup.sh                    # generates .env with secrets
-docker compose up -d          # start all services
+./setup.sh                    # generates .env, picks backends
+docker compose up -d          # start services
 ./scripts/test-gateway.sh     # verify everything works
 ```
 
@@ -55,14 +57,37 @@ cp .env.example .env
 echo "MEMENTO_ACCESS_KEY=$(openssl rand -hex 32)"
 echo "POSTGRES_PASSWORD=$(openssl rand -hex 32)"
 
-# Edit .env — fill in GITHUB_PERSONAL_ACCESS_TOKEN at minimum
-# Optional: configure Signal, Ollama, Cloudflare
+# Edit .env:
+#   - Set COMPOSE_PROFILES to enable backends (e.g., github,ollama,ssh)
+#   - Fill in credentials for each enabled profile
+#   - See .env.example for all options
 
 # Start
 docker compose up -d
 
 # Verify
 curl http://localhost:9000/health
+```
+
+### Choosing Backends
+
+Backends are controlled by Docker Compose **profiles** via `COMPOSE_PROFILES` in `.env`:
+
+| Profile | What it enables | Requires |
+|---------|----------------|----------|
+| `github` | GitHub API tools | `GITHUB_PERSONAL_ACCESS_TOKEN` |
+| `ollama` | Local LLM tools | Ollama running on host |
+| `ssh` | SSH to fleet devices | SSH keys in `ssh-keys/` |
+| `signal` | Signal messaging | Signal REST API + `AI_SIGNALS_PATH` |
+| `cloudflare` | Cloudflare API | `CLOUDFLARE_API_TOKEN` + `CLOUDFLARE_ACCOUNT_ID` |
+
+Core services (memento, tools, docker, rss) always start regardless of profiles.
+
+```bash
+# Examples:
+COMPOSE_PROFILES=github                     # core + GitHub only
+COMPOSE_PROFILES=github,ollama,ssh          # core + GitHub + Ollama + SSH
+COMPOSE_PROFILES=github,ollama,ssh,signal   # everything except Cloudflare
 ```
 
 ### Remote Deploy
@@ -108,47 +133,42 @@ Copy `.env.example` to `.env` and fill in values. The `setup.sh` script automate
 |----------|-------------|
 | `MEMENTO_ACCESS_KEY` | Auth key for Memento MCP (generate: `openssl rand -hex 32`) |
 | `POSTGRES_PASSWORD` | PostgreSQL password (generate: `openssl rand -hex 32`) |
-| `GITHUB_PERSONAL_ACCESS_TOKEN` | GitHub PAT for github-mcp ([create one](https://github.com/settings/tokens)) |
+
+### Profile-Specific
+
+| Variable | Profile | Description |
+|----------|---------|-------------|
+| `GITHUB_PERSONAL_ACCESS_TOKEN` | `github` | GitHub PAT ([create one](https://github.com/settings/tokens)) |
+| `SIGNAL_API_URL` | `signal` | Signal REST API endpoint |
+| `SIGNAL_BOT_NUMBER` | `signal` | Signal sender phone number |
+| `SIGNAL_RECIPIENT` | `signal` | Default Signal recipient |
+| `AI_SIGNALS_PATH` | `signal` | Path to ai-signals dist directory |
+| `OLLAMA_HOST` | `ollama` | Ollama endpoint (default: `http://host.docker.internal:11434`) |
+| `CLOUDFLARE_API_TOKEN` | `cloudflare` | Cloudflare API token |
+| `CLOUDFLARE_ACCOUNT_ID` | `cloudflare` | Cloudflare account ID |
 
 ### Optional
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `SIGNAL_API_URL` | *(empty)* | Signal REST API endpoint ([setup guide](https://github.com/bbernhard/signal-cli-rest-api)) |
-| `SIGNAL_BOT_NUMBER` | *(empty)* | Signal sender phone number |
-| `SIGNAL_RECIPIENT` | *(empty)* | Default Signal recipient |
-| `OLLAMA_HOST` | `http://host.docker.internal:11434` | Ollama endpoint (auto-detects host) |
-| `CLOUDFLARE_ACCOUNT_ID` | *(empty)* | If set, enables Cloudflare MCP backend |
+| `COMPOSE_PROFILES` | *(empty)* | Comma-separated list of backend profiles to enable |
 | `DOMAIN` | `localhost` | Domain for Caddy reverse proxy |
 | `GATEWAY_PORT` | `9000` | Gateway listen port |
+| `SSH_KEYS_PATH` | `./ssh-keys` | Path to SSH keys directory |
 
 ## Backends
 
-| Backend | Tools | Description | Required? |
-|---------|-------|-------------|-----------|
-| **memento** | 11 | Semantic memory with pgvector — remember, recall, reflect | Always |
-| **tools** | 9 | Fleet monitoring, Signal notifications, shared config | Always |
-| **github** | 26 | GitHub API — repos, issues, PRs, search | Needs `GITHUB_PERSONAL_ACCESS_TOKEN` |
-| **docker** | 4 | Container management — list, start, stop, logs | Needs Docker socket |
-| **ollama** | 13 | Local LLMs — chat, generate, models | Needs Ollama running on host |
-| **ssh** | 37 | SSH to fleet devices — exec, file transfer | Needs SSH keys in `ssh-keys/` |
-| **rss** | 2 | RSS feed reader | Always |
-| **signal** | 3 | Signal messaging | Needs Signal REST API |
-| **cloudflare** | varies | Cloudflare API | Needs `CLOUDFLARE_ACCOUNT_ID` |
-
-## Running a Subset of Backends
-
-You can start only the services you need:
-
-```bash
-# Core only (gateway + memento + tools)
-docker compose up -d postgres redis memento fastmcp-tools mcp-gateway
-
-# Core + GitHub + Docker
-docker compose up -d postgres redis memento fastmcp-tools github-mcp docker-mcp mcp-gateway
-```
-
-The gateway automatically skips unreachable backends and reports their status in `/health`.
+| Backend | Tools | Description | Startup |
+|---------|-------|-------------|---------|
+| **memento** | 11 | Semantic memory with pgvector — remember, recall, reflect | Core (always) |
+| **tools** | 9 | Fleet monitoring, Signal notifications, shared config | Core (always) |
+| **docker** | 4 | Container management — list, start, stop, logs | Core (always) |
+| **rss** | 2 | RSS feed reader | Core (always) |
+| **github** | 26 | GitHub API — repos, issues, PRs, search | Profile: `github` |
+| **ollama** | 13 | Local LLMs — chat, generate, models | Profile: `ollama` |
+| **ssh** | 37 | SSH to fleet devices — exec, file transfer | Profile: `ssh` |
+| **signal** | 3 | Signal messaging | Profile: `signal` |
+| **cloudflare** | varies | Cloudflare API | Profile: `cloudflare` |
 
 ## Adding a Custom Backend
 
@@ -159,10 +179,11 @@ FROM node:22-slim
 RUN npm i -g supergateway @your-org/your-mcp-server
 EXPOSE 3000
 CMD ["supergateway", "--stdio", "npx @your-org/your-mcp-server", \
-     "--port", "3000", "--outputTransport", "streamableHttp", "--stateful"]
+     "--port", "3000", "--outputTransport", "streamableHttp", "--stateful", \
+     "--healthEndpoint", "/health"]
 ```
 
-2. Add the service to `docker-compose.yml`
+2. Add the service to `docker-compose.yml` (use a profile if it's optional)
 3. Add the backend URL to `mcp-gateway/server.py` in `_build_mcp_config()`
 4. Rebuild: `docker compose up -d --build`
 
@@ -196,8 +217,11 @@ The gateway still works for connected backends. Check `docker compose logs <serv
 **rss-mcp OOM:**
 Memory limit is set to 256M. Do not reduce below this.
 
-**Missing `caddy/client-certs/` directory:**
-Run `mkdir -p caddy/client-certs` or run `./caddy/generate-certs.sh`.
+**Ollama backend can't connect (Linux):**
+`host.docker.internal` only works on Docker Desktop (macOS/Windows). On Linux, set `OLLAMA_HOST` to your host's LAN IP (e.g., `http://192.168.1.100:11434`) and ensure Ollama is listening on `0.0.0.0`.
+
+**Missing directories:**
+Run `mkdir -p caddy/client-certs ssh-keys` or run `./setup.sh` which creates them automatically.
 
 ## Project Structure
 
