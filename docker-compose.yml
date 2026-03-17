@@ -173,7 +173,7 @@ services:
     restart: unless-stopped
     profiles: ["github"]
     environment:
-      GITHUB_PERSONAL_ACCESS_TOKEN: ${GITHUB_PERSONAL_ACCESS_TOKEN:?Set GITHUB_PERSONAL_ACCESS_TOKEN in .env}
+      GITHUB_PERSONAL_ACCESS_TOKEN: ${GITHUB_PERSONAL_ACCESS_TOKEN:-}
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:3000/health 2>/dev/null | grep -q ok"]
       interval: 30s
@@ -195,7 +195,7 @@ services:
       SIGNAL_BOT_NUMBER: ${SIGNAL_BOT_NUMBER:-}
       SIGNAL_RECIPIENT: ${SIGNAL_RECIPIENT:-}
     volumes:
-      - ${AI_SIGNALS_PATH:?Set AI_SIGNALS_PATH in .env}:/app/signal-mcp:ro
+      - ${AI_SIGNALS_PATH:-./mcp-wrappers/signal/placeholder}:/app/signal-mcp:ro
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:3000/health 2>/dev/null | grep -q ok"]
       interval: 30s
@@ -250,8 +250,8 @@ services:
     restart: unless-stopped
     profiles: ["cloudflare"]
     environment:
-      CLOUDFLARE_API_TOKEN: ${CLOUDFLARE_API_TOKEN:?Set CLOUDFLARE_API_TOKEN in .env}
-      CLOUDFLARE_ACCOUNT_ID: ${CLOUDFLARE_ACCOUNT_ID:?Set CLOUDFLARE_ACCOUNT_ID in .env}
+      CLOUDFLARE_API_TOKEN: ${CLOUDFLARE_API_TOKEN:-}
+      CLOUDFLARE_ACCOUNT_ID: ${CLOUDFLARE_ACCOUNT_ID:-}
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:3000/health 2>/dev/null | grep -q ok"]
       interval: 30s
