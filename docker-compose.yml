@@ -136,7 +136,8 @@ services:
     environment:
       GATEWAY_HOST: "0.0.0.0"
       GATEWAY_PORT: "9000"
-      GATEWAY_VERSION: ${GATEWAY_VERSION:-1.2.0}
+      GATEWAY_VERSION: ${GATEWAY_VERSION:-1.3.0}
+      TOOL_DISCOVERY: ${TOOL_DISCOVERY:-true}
       MEMENTO_URL: "http://memento:56332"
       MEMENTO_ACCESS_KEY: ${MEMENTO_ACCESS_KEY:?Set MEMENTO_ACCESS_KEY in .env}
       NETWORK_TOOLS_URL: "http://fastmcp-tools:8090"

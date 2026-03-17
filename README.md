@@ -152,9 +152,33 @@ Copy `.env.example` to `.env` and fill in values. The `setup.sh` script automate
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `COMPOSE_PROFILES` | *(empty)* | Comma-separated list of backend profiles to enable |
+| `TOOL_DISCOVERY` | `true` | Enable BM25 tool discovery (see below) |
 | `DOMAIN` | `localhost` | Domain for Caddy reverse proxy |
 | `GATEWAY_PORT` | `9000` | Gateway listen port |
 | `SSH_KEYS_PATH` | `./ssh-keys` | Path to SSH keys directory |
+
+## Tool Discovery
+
+By default, the gateway uses **BM25 tool discovery** to reduce token usage. Instead of sending all 100+ tool definitions on connect (~18k tokens), clients see ~12 tools (~2k tokens):
+
+| Tool | Type | Purpose |
+|------|------|---------|
+| `search_tools` | Synthetic | BM25 search across all tools by natural language query |
+| `call_tool` | Synthetic | Execute any discovered tool by name |
+| `list_tool_categories` | Custom | Overview of available tool categories |
+| 7 pinned essentials | Real | `memento_remember`, `memento_recall`, `tools_fleet_status`, etc. |
+
+### How AI uses it
+
+```
+1. list_tool_categories()          → "github: 26 tools", "ssh: 37 tools", ...
+2. search_tools(query="create PR") → returns github_create_pull_request definition
+3. call_tool(name="github_create_pull_request", arguments={...}) → executes it
+```
+
+### Disabling discovery
+
+Set `TOOL_DISCOVERY=false` in `.env` to expose all tools directly (original behavior).
 
 ## Backends
 
